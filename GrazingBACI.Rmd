@@ -1,0 +1,171 @@
+---
+title: "Begrazing Schapen Analyse"
+author: "Femke Batsleer"
+date: "25 september 2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggsci)
+library(effects)
+library(afex)
+library(lme4)
+library(sjPlot)
+```
+
+# Read data
+
+```{r}
+#read data
+rd <- read.csv(file="data_grazing_BACI.csv", header=T, sep=";")
+
+#rename data and get in right format
+rd_tidy <- rd %>%
+  mutate(Site = ifelse(Site=="Cabour", "Extensive",
+                       ifelse(Site=="Controle thesis", "Control", "Intensive"))) %>%
+  rename(Level_grazing=Site, Timepoint=Meetpunt, Year=Jaar) %>%
+  mutate(Level_grazing = as.factor(Level_grazing)) %>%
+  mutate(Year=as.factor(Year))
+
+rd_tidy$Datum <- factor(rd_tidy$Datum, levels=unique(rd$Datum))
+rd_tidy$Date <- as.Date(rd_tidy$Datum, format="%d/%m/%Y")
+
+rd_tidy <- rd_tidy %>% 
+  rename(nClosedNests = Aantal.toe,
+         nOpenNests = Aantal.open)
+rd_tidy <- rd_tidy %>% mutate(PlotUnique = paste0(Level_grazing, as.character(Plot)))
+
+head(rd_tidy)
+summary(rd_tidy)
+nrow(rd_tidy)
+```
+
+# Statistical model
+
+```{r}
+#running statistical model
+model_closed <- glmer.nb(nClosedNests ~ Year +
+                           Level_grazing +
+                           Year:Level_grazing +
+                           (1 | PlotUnique) +
+                           (1 | Timepoint),
+                    data = rd_tidy,
+                    control = glmerControl(optimizer = "bobyqa",
+                    optCtrl = list(maxfun = 2e5)))
+summary(model_closed)
+
+plot_model(model_closed,
+           type = "pred",
+           terms = c("Year", "Level_grazing"),
+           dot.size = 3,
+           line.size = 1) +
+  xlab("Grazing level") +
+  ylab("Number of nests") +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1),
+        axis.text = element_text(size = 20),
+        axis.title = element_text(size = 25,
+                                  face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20), 
+        panel.background = element_rect(fill = "white",
+                                        colour = "grey",
+                                        size = 1,
+                                        linetype = "solid"), 
+        panel.grid.major = element_line(size = 0.5,
+                                        linetype = "solid",
+                                        colour = "grey")) +
+  scale_colour_jco()
+
+
+plot_model(model_closed,
+           type = "pred",
+           terms = c("Level_grazing", "Year"),
+           dot.size = 3,
+           line.size = 1) +
+  xlab("Grazing level") +
+  ylab("Number of nests") +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1),
+        axis.text = element_text(size = 20),
+        axis.title = element_text(size = 25,
+                                  face = "bold"),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 20), 
+        panel.background = element_rect(fill = "white",
+                                        colour = "grey",
+                                        size = 1,
+                                        linetype = "solid"), 
+        panel.grid.major = element_line(size = 0.5,
+                                        linetype = "solid",
+                                        colour = "grey")) +
+  scale_colour_jco()
+```
+
+# Plots
+
+To plot the graphs, the average over the different plots is taken (random effect in model)
+
+```{r}
+#Summarize to get average over plots per level of grazing 
+rd_tidy_summary <- rd_tidy %>% ungroup() %>%
+  # mutate(Site=recode_factor(Site, "Controle thesis"="Controle",
+  #                           "Cabour" = "Extensief",
+  #                           "Westhoek Zuid" = "Stoot")) %>%
+  group_by(Year, Level_grazing) %>%
+  summarise(avg.closed = mean(nClosedNests), sd.closed = sd(nClosedNests),
+            avg.open = mean(nOpenNests), sd.open = sd(nOpenNests),
+            n=n()) %>%
+  mutate(se.closed=sd.closed/sqrt(n),
+         se.open = sd.open/sqrt(n))
+
+rd_tidy_delta <- rd_tidy_summary %>% dplyr::select(-avg.open, -sd.open, -se.open) %>%
+  pivot_wider(names_from= Level_grazing, values_from=c(avg.closed, sd.closed, n, se.closed)) %>%
+  mutate(delta_avg.closed_Extensive = avg.closed_Extensive - avg.closed_Control,
+         delta_avg.closed_Intensive = avg.closed_Intensive - avg.closed_Control,
+         delta_se.closed_Extensive = se.closed_Extensive + se.closed_Control,
+         delta_se.closed_Intensive = se.closed_Intensive + se.closed_Control) %>%
+  dplyr::select(Year, delta_avg.closed_Extensive, delta_avg.closed_Intensive,
+                delta_se.closed_Extensive, delta_se.closed_Intensive)
+
+rd_tidy_delta_avg <- rd_tidy_delta %>% dplyr::select(Year, delta_avg.closed_Extensive, delta_avg.closed_Intensive) %>%
+  rename(Extensive=delta_avg.closed_Extensive, Intensive=delta_avg.closed_Intensive) %>%
+  pivot_longer(c(Extensive, Intensive), names_to="Level_grazing", values_to="delta.avg_closed")
+rd_tidy_delta_se <- rd_tidy_delta %>% dplyr::select(Year, delta_se.closed_Extensive, delta_se.closed_Intensive) %>%
+  rename(Extensive=delta_se.closed_Extensive, Intensive=delta_se.closed_Intensive) %>%
+  pivot_longer(c(Extensive, Intensive), names_to="Level_grazing", values_to="delta.se_closed")
+
+rd_delta <- rd_tidy_delta_avg %>% full_join(rd_tidy_delta_se, by=c("Year", "Level_grazing"))
+
+head(rd_tidy_delta)
+
+barplot_closed_year <- ggplot(rd_tidy_summary, aes(x=Year, y=avg.closed, fill=Level_grazing))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_errorbar(aes(ymin=avg.closed-se.closed, ymax=avg.closed+se.closed), width=.2, position=position_dodge(0.9))+ 
+  scale_linetype_manual(values=c("Control"=2, "Extensive"=1, "Intensive"=1))+
+  scale_fill_brewer(palette="Greens")+
+  theme_bw()+
+  theme(text=element_text(size=16))+
+  #ggtitle("Closed nests (reproduction)") +
+  ylab("Amount closed nests")+xlab("Year") +
+  guides(fill=guide_legend(title="Level of grazing"), linetype=guide_legend(title="Level of grazing"))
+barplot_closed_year
+
+barplot_closed_delta <- ggplot(rd_delta, aes(x=Year, y=delta.avg_closed, fill=Level_grazing))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_errorbar(aes(ymin=delta.avg_closed-delta.se_closed, ymax=delta.avg_closed+delta.se_closed), width=.2, position=position_dodge(0.9))+
+  scale_fill_brewer(palette="Blues")+
+  theme_bw()+
+  theme(text=element_text(size=16))+
+  ylab("Difference number of nests")+xlab("Year") +
+  scale_x_discrete(position = "top") +
+  guides(fill=guide_legend(title="Grazing intensity"), linetype=guide_legend(title="Grazing intensity"))
+barplot_closed_delta
+```
+
