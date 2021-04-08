@@ -1,7 +1,7 @@
 ---
 title: "Begrazing Schapen Analyse"
 author: "Femke Batsleer"
-date: "25 september 2020"
+date: "8 April 2021"
 output:
   pdf_document: default
   html_document: default
@@ -27,10 +27,10 @@ rd <- read.csv(file="data_grazing_BACI.csv", header=T, sep=";")
 
 #rename data and get in right format
 rd_tidy <- rd %>%
-  mutate(Site = ifelse(Site=="Cabour", "Extensive",
-                       ifelse(Site=="Controle thesis", "Control", "Intensive"))) %>%
-  rename(Level_grazing=Site, Timepoint=Meetpunt, Year=Jaar) %>%
-  mutate(Level_grazing = as.factor(Level_grazing)) %>%
+  mutate(Site = ifelse(Site=="Cabour", "Site1",
+                       ifelse(Site=="Controle thesis", "Control", "Site2"))) %>%
+  rename(Timepoint=Meetpunt, Year=Jaar) %>%
+  mutate(Site = as.factor(Site)) %>%
   mutate(Year=as.factor(Year))
 
 rd_tidy$Datum <- factor(rd_tidy$Datum, levels=unique(rd$Datum))
@@ -39,7 +39,7 @@ rd_tidy$Date <- as.Date(rd_tidy$Datum, format="%d/%m/%Y")
 rd_tidy <- rd_tidy %>% 
   rename(nClosedNests = Aantal.toe,
          nOpenNests = Aantal.open)
-rd_tidy <- rd_tidy %>% mutate(PlotUnique = paste0(Level_grazing, as.character(Plot)))
+rd_tidy <- rd_tidy %>% mutate(PlotUnique = paste0(Site, as.character(Plot)))
 
 head(rd_tidy)
 summary(rd_tidy)
@@ -51,8 +51,8 @@ nrow(rd_tidy)
 ```{r}
 #running statistical model
 model_closed <- glmer.nb(nClosedNests ~ Year +
-                           Level_grazing +
-                           Year:Level_grazing +
+                           Site +
+                           Year:Site +
                            (1 | PlotUnique) +
                            (1 | Timepoint),
                     data = rd_tidy,
@@ -62,10 +62,10 @@ summary(model_closed)
 
 plot_model(model_closed,
            type = "pred",
-           terms = c("Year", "Level_grazing"),
+           terms = c("Year", "Site"),
            dot.size = 3,
            line.size = 1) +
-  xlab("Grazing level") +
+  xlab("Site") +
   ylab("Number of nests") +
   theme(axis.text.x = element_text(angle = 45,
                                    hjust = 1),
@@ -86,10 +86,10 @@ plot_model(model_closed,
 
 plot_model(model_closed,
            type = "pred",
-           terms = c("Level_grazing", "Year"),
+           terms = c("Site", "Year"),
            dot.size = 3,
            line.size = 1) +
-  xlab("Grazing level") +
+  xlab("Site") +
   ylab("Number of nests") +
   theme(axis.text.x = element_text(angle = 45,
                                    hjust = 1),
@@ -118,54 +118,24 @@ rd_tidy_summary <- rd_tidy %>% ungroup() %>%
   # mutate(Site=recode_factor(Site, "Controle thesis"="Controle",
   #                           "Cabour" = "Extensief",
   #                           "Westhoek Zuid" = "Stoot")) %>%
-  group_by(Year, Level_grazing) %>%
+  group_by(Year, Site) %>%
   summarise(avg.closed = mean(nClosedNests), sd.closed = sd(nClosedNests),
             avg.open = mean(nOpenNests), sd.open = sd(nOpenNests),
             n=n()) %>%
   mutate(se.closed=sd.closed/sqrt(n),
          se.open = sd.open/sqrt(n))
 
-rd_tidy_delta <- rd_tidy_summary %>% dplyr::select(-avg.open, -sd.open, -se.open) %>%
-  pivot_wider(names_from= Level_grazing, values_from=c(avg.closed, sd.closed, n, se.closed)) %>%
-  mutate(delta_avg.closed_Extensive = avg.closed_Extensive - avg.closed_Control,
-         delta_avg.closed_Intensive = avg.closed_Intensive - avg.closed_Control,
-         delta_se.closed_Extensive = se.closed_Extensive + se.closed_Control,
-         delta_se.closed_Intensive = se.closed_Intensive + se.closed_Control) %>%
-  dplyr::select(Year, delta_avg.closed_Extensive, delta_avg.closed_Intensive,
-                delta_se.closed_Extensive, delta_se.closed_Intensive)
 
-rd_tidy_delta_avg <- rd_tidy_delta %>% dplyr::select(Year, delta_avg.closed_Extensive, delta_avg.closed_Intensive) %>%
-  rename(Extensive=delta_avg.closed_Extensive, Intensive=delta_avg.closed_Intensive) %>%
-  pivot_longer(c(Extensive, Intensive), names_to="Level_grazing", values_to="delta.avg_closed")
-rd_tidy_delta_se <- rd_tidy_delta %>% dplyr::select(Year, delta_se.closed_Extensive, delta_se.closed_Intensive) %>%
-  rename(Extensive=delta_se.closed_Extensive, Intensive=delta_se.closed_Intensive) %>%
-  pivot_longer(c(Extensive, Intensive), names_to="Level_grazing", values_to="delta.se_closed")
-
-rd_delta <- rd_tidy_delta_avg %>% full_join(rd_tidy_delta_se, by=c("Year", "Level_grazing"))
-
-head(rd_tidy_delta)
-
-barplot_closed_year <- ggplot(rd_tidy_summary, aes(x=Year, y=avg.closed, fill=Level_grazing))+
+barplot_closed_year <- ggplot(rd_tidy_summary, aes(x=Year, y=avg.closed, fill=Site))+
   geom_bar(stat="identity", position=position_dodge())+
   geom_errorbar(aes(ymin=avg.closed-se.closed, ymax=avg.closed+se.closed), width=.2, position=position_dodge(0.9))+ 
-  scale_linetype_manual(values=c("Control"=2, "Extensive"=1, "Intensive"=1))+
-  scale_fill_brewer(palette="Greens")+
+  scale_linetype_manual(values=c("Control"=2, "Site1"=1, "Site2"=1))+
+  scale_fill_brewer(palette="Blues")+
   theme_bw()+
   theme(text=element_text(size=16))+
   #ggtitle("Closed nests (reproduction)") +
   ylab("Amount closed nests")+xlab("Year") +
-  guides(fill=guide_legend(title="Level of grazing"), linetype=guide_legend(title="Level of grazing"))
+  guides(fill=guide_legend(title="Site"), linetype=guide_legend(title="Site"))
 barplot_closed_year
-
-barplot_closed_delta <- ggplot(rd_delta, aes(x=Year, y=delta.avg_closed, fill=Level_grazing))+
-  geom_bar(stat="identity", position=position_dodge())+
-  geom_errorbar(aes(ymin=delta.avg_closed-delta.se_closed, ymax=delta.avg_closed+delta.se_closed), width=.2, position=position_dodge(0.9))+
-  scale_fill_brewer(palette="Blues")+
-  theme_bw()+
-  theme(text=element_text(size=16))+
-  ylab("Difference number of nests")+xlab("Year") +
-  scale_x_discrete(position = "top") +
-  guides(fill=guide_legend(title="Grazing intensity"), linetype=guide_legend(title="Grazing intensity"))
-barplot_closed_delta
 ```
 

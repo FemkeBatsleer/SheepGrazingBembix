@@ -7,8 +7,8 @@ library(tidyr)
 library(ggrepel)
 
 #load raster file
-dens_wz <- raster(x="DensityGPS_HighIntensity.tif")
-dens_ca <- raster(x="DensityGPS_LowIntensity.tif")
+dens_wz <- raster(x="DensityGPS_WesthoekZuid.tif")
+dens_ca <- raster(x="DensityGPS_Cabour.tif")
 #load points
 points_plots <- readOGR("study plots midpoints.shp")
 polygon_buff <- readOGR("study plots polygon buffer 1m.shp")
