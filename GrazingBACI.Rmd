@@ -128,14 +128,45 @@ rd_tidy_summary <- rd_tidy %>% ungroup() %>%
 
 barplot_closed_year <- ggplot(rd_tidy_summary, aes(x=Year, y=avg.closed, fill=Site))+
   geom_bar(stat="identity", position=position_dodge())+
-  geom_errorbar(aes(ymin=avg.closed-se.closed, ymax=avg.closed+se.closed), width=.2, position=position_dodge(0.9))+ 
+  geom_errorbar(aes(ymin=avg.closed-se.closed, ymax=avg.closed+se.closed), width=.2, position=position_dodge(0.9))+
   scale_linetype_manual(values=c("Control"=2, "Site1"=1, "Site2"=1))+
   scale_fill_brewer(palette="Blues")+
   theme_bw()+
   theme(text=element_text(size=16))+
   #ggtitle("Closed nests (reproduction)") +
-  ylab("Amount closed nests")+xlab("Year") +
+  ylab("Number of nests")+xlab("Year") +
   guides(fill=guide_legend(title="Site"), linetype=guide_legend(title="Site"))
 barplot_closed_year
+
+barplot_closed_site <- ggplot(rd_tidy_summary, aes(x=Site, y=avg.closed, fill=Year))+
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_errorbar(aes(ymin=avg.closed-se.closed, ymax=avg.closed+se.closed), width=.2, position=position_dodge(0.9))+ 
+  scale_fill_brewer(palette="Blues")+
+  theme_bw()+
+  theme(text=element_text(size=16))+
+  #ggtitle("Closed nests (reproduction)") +
+  ylab("Number of nests")+xlab("Site") +
+  guides(fill=guide_legend(title="Year"))
+barplot_closed_site
+
+boxplot_closed_year <- ggplot(rd_tidy, aes(x=Year, y=nClosedNests, fill=Site))+
+  geom_boxplot()+
+  scale_fill_manual(values = c('Control'='#ece2f0', 'Site1' = '#a6bddb', 'Site2' = '#1c9099'))+
+  theme_bw()+
+  theme(text=element_text(size=16))+
+  #ggtitle("Closed nests (reproduction)") +
+  ylab("Number of nests")+xlab("Year") +
+  guides(fill=guide_legend(title="Site"), linetype=guide_legend(title="Site"))
+boxplot_closed_year
+
+boxplot_closed_site <- ggplot(rd_tidy, aes(x=Site, y=nClosedNests, fill=Year))+
+  geom_boxplot()+
+  scale_fill_manual(values = c('2018'='#ece2f0', '2019' = '#a6bddb', '2020' = '#1c9099'))+
+  theme_bw()+
+  theme(text=element_text(size=16))+
+  #ggtitle("Closed nests (reproduction)") +
+  ylab("Number of nests")+xlab("Site") +
+  guides(fill=guide_legend(title="Year"))
+boxplot_closed_site
 ```
 
